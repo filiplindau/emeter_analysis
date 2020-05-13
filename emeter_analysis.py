@@ -16,6 +16,7 @@ import glob
 import time
 import threading
 import multiprocessing as mp
+import warnings
 import logging
 
 logger = logging.getLogger()
@@ -31,8 +32,14 @@ logging.getLogger('parso.python.diff').disabled = True
 logging.getLogger('parso.cache').disabled = True
 logging.getLogger('parso.cache.pickle').disabled = True
 
+with warnings.catch_warnings():
+    warnings.filterwarnings("ignore", "invalid value encountered in double_scalars")
+    warnings.filterwarnings("ignore", "invalid value encountered in true_divide")
+    warnings.filterwarnings("ignore", "invalid value encountered in greater")
+    # warnings.simplefilter("ignore", RuntimeWarning, 61)
 
-def process_image(pic, slit_pos, parameter_dict):
+
+def process_image(pic, filename, slit_pos, parameter_dict):
     kernel = parameter_dict["kernel"]
     mask_kern = parameter_dict["mask_kernel"]
 
@@ -53,8 +60,9 @@ def process_image(pic, slit_pos, parameter_dict):
     pic_proc = np.maximum(0, pic_proc - 1.1 * bkg_level[:, np.newaxis])
 
     x = np.arange(pic_proc.shape[1])
-    x0 = ((pic_proc * x[np.newaxis, :]).sum(1) / pic_proc.sum(1))
-    x1 = (pic_proc * (x[np.newaxis, :] - x0[:, np.newaxis]) ** 2).sum(1) / pic_proc.sum(1)
+    line_y = pic_proc.sum(1)
+    x0 = ((pic_proc * x[np.newaxis, :]).sum(1) / line_y)
+    x1 = (pic_proc * (x[np.newaxis, :] - x0[:, np.newaxis]) ** 2).sum(1) / line_y
     x0_good = x0[~np.isnan(x0)]
     x1_good = x1[~np.isnan(x1)]
 
@@ -80,22 +88,35 @@ def process_image(pic, slit_pos, parameter_dict):
     mask = medfilt(np.maximum(0, pic_roi2 - bkg_cut), [mask_kern, kernel])
     t2 = time.time()
     pic_proc3 = pic_proc2 * (mask > 0)
-    xt = px * np.arange(pic_proc3.shape[1])
-    xt0 = ((pic_proc3 * xt[np.newaxis, :]).sum(1) / pic_proc3.sum(1))
-    xt1 = (pic_proc3 * (xt[np.newaxis, :] - xt0[:, np.newaxis]) ** 2).sum(1) / pic_proc3.sum(1)
-    ind = ~np.isnan(xt1)
     charge = pic_proc3.sum()
-    xt1_w = (xt1[ind] * pic_proc3[ind, :].sum(1)).sum() / charge
-    logger.debug("Spot sigma: {0:.1f} pixels".format(xt1_w))
-    logger.debug("Charge: {0}".format(charge))
+
+    # line_y = pic_proc3.sum(1)
+    # if line_y > 0:
+    #     xt = px * np.arange(pic_proc3.shape[1])
+    #     xt0 = ((pic_proc3 * xt[np.newaxis, :]).sum(1) / line_y)
+    #     xt1 = (pic_proc3 * (xt[np.newaxis, :] - xt0[:, np.newaxis]) ** 2).sum(1) / line_y
+    # else:
+    #     xt1 = np.nan
+    # ind = ~np.isnan(xt1)
+    #
+    # if charge > 0:
+    #     xt1_w = (xt1[ind] * pic_proc3[ind, :].sum(1)).sum() / charge
+    # logger.debug("Spot sigma: {0:.1f} pixels".format(xt1_w))
+    # logger.debug("Charge: {0}".format(charge))
     pic_proc3 = ndimage.rotate(pic_proc3, rotation * 180 / np.pi, reshape=False)
 
-    line = pic_proc3.sum(0)
-    x = np.arange(line.shape[0]) * px
-    x0 = (x * line).sum() / charge
-    xp2 = np.sqrt(((x - x0) ** 2 * line).sum() / charge) / dist
-    xp = (x0 + xc * px - slit_pos) / dist
-    result = {"charge": charge, "xc": xc, "xp": xp, "xp2": xp2, "pic_proc": pic_proc3, "slit_pos": slit_pos}
+    line_x = pic_proc3.sum(0)
+    x = np.arange(line_x.shape[0]) * px
+    if charge > 0:
+        x0 = (x * line_x).sum() / charge
+        xp2 = np.sqrt(((x - x0) ** 2 * line_x).sum() / charge) / dist
+        xp = (x0 + xc * px - slit_pos) / dist
+    else:
+        x0 = np.nan
+        xp = 0
+        xp2 = 0
+    result = {"file_name": filename, "charge": charge, "xc": xc, "xp": xp, "xp2": xp2,
+              "pic_proc": pic_proc3, "slit_pos": slit_pos}
     return result
 
 
@@ -137,6 +158,9 @@ class EmittanceMeterAnalysis(object):
 
         self.param_lock = threading.Lock()
         self.data_lock = threading.Lock()
+
+        self.ready_callback = None
+        self.update_callback = None
 
     def analyze_scan(self, filename, bkg_cut=7):
         t_start = time.time()
@@ -218,11 +242,27 @@ class EmittanceMeterAnalysis(object):
 
         return self.eps
 
-    def analyze_scan_mp(self, filename):
-        t0 = time.time()
+    def analyze_scan_mp(self, filename, sum_images_for_pos=False, ready_callback=None, update_callback=None):
         full_name = os.path.join(self.path, "{0}-*.npy".format(filename))
         file_list = glob.glob(full_name)
         logger.info("Looking for {0}. Found {1} files".format(full_name, len(file_list)))
+
+        self.update_callback = update_callback
+
+        if sum_images_for_pos:
+            pos_list = list()
+            [pos_list.append(file.split("-")[-2]) for file in file_list if "bkg" not in file]
+            n_pos = len(set(pos_list))
+        else:
+            n_pos = len(file_list)
+
+        thread = threading.Thread(target=self.run_scan, args=(file_list, sum_images_for_pos, ready_callback))
+        thread.start()
+        return n_pos
+
+    def run_scan(self, file_list, sum_images_for_pos, ready_callback):
+        logger.info("Run thread starting")
+        t0 = time.time()
         with self.data_lock:
             self.image_data = list()
             self.image_center_data = list()
@@ -246,22 +286,46 @@ class EmittanceMeterAnalysis(object):
             roi_w = self.roi_w
 
         pool = mp.Pool(mp.cpu_count())
+        if sum_images_for_pos:
+            pos_list = list()
+            [pos_list.append(file.split("-")[-2]) for file in file_list if "bkg" not in file]
+            pos_u = list(set(pos_list))
+            for pos_s in pos_u:
+                files = [file for file in file_list if pos_s in file]
+                pic_roi = np.zeros((roi_h, roi_w))
+                n_f = 0
+                for file in files:
+                    try:
+                        pic = np.load(file)
+                        n_f += 1
+                    except ValueError:
+                        logger.error("File {0} corrupted. Skipping.".format(file))
+                        if self.update_callback is not None:
+                            self.update_callback((file, None))
+                        continue
+                    pic_roi += np.double(pic[roi_t:roi_t + roi_h, roi_l:roi_l + roi_w])
+                pic_roi /= n_f
+                logger.info("Processing image at pos {0}".format(pos_s))
+                pos = np.double(pos_s) * 1e-3
+                pool.apply_async(process_image, (pic_roi, pos_s, pos, parameter_dict), callback=self.result_callback)
+        else:
+            for ind, file in enumerate(file_list):
+                t0 = time.time()
+                logger.debug("\n===============================================================\n\n"
+                             "  Processing image {0}: {1}/{2}\n".format(file, ind, len(file_list)))
+                if "bkg" not in file:
+                    t1 = time.time()
+                    pos = np.double(file.split("-")[-2]) * 1e-3
+                    try:
+                        pic = np.load(file)
+                    except ValueError:
+                        logger.error("File {0} corrupted. Skipping.".format(file))
+                        if self.update_callback is not None:
+                            self.update_callback((file, None))
+                        continue
 
-        for ind, file in enumerate(file_list):
-            t0 = time.time()
-            logger.debug("\n===============================================================\n\n"
-                         "  Processing image {0}: {1}/{2}\n".format(file, ind, len(file_list)))
-            if not "bkg" in file:
-                t1 = time.time()
-                pos = np.double(file.split("-")[-2]) * 1e-3
-                try:
-                    pic = np.load(file)
-                except ValueError:
-                    logger.error("File {0} corrupted. Skipping.".format(file))
-                    continue
-
-                pic_roi = np.double(pic[roi_t:roi_t + roi_h, roi_l:roi_l + roi_w])
-                pool.apply_async(process_image, (pic_roi, pos, parameter_dict), callback=self.result_callback)
+                    pic_roi = np.double(pic[roi_t:roi_t + roi_h, roi_l:roi_l + roi_w])
+                    pool.apply_async(process_image, (pic_roi, file, pos, parameter_dict), callback=self.result_callback)
         pool.close()
         pool.join()
         with self.data_lock:
@@ -272,9 +336,12 @@ class EmittanceMeterAnalysis(object):
             self.image_center_data = np.array(self.image_center_data)[ind_sort][ind_good]
             self.xp_data = np.array(self.xp_data)[ind_sort][ind_good]
             self.xp2_data = np.array(self.xp2_data)[ind_sort][ind_good]
+            self.image_data = np.array(self.image_data)[ind_sort, :, :][ind_good, :, :]
 
         eps = self.calc_emittance()
         logger.info("Total time: {0}".format(time.time() - t0))
+        if ready_callback is not None:
+            ready_callback(eps)
         return eps
 
     def result_callback(self, res):
@@ -286,6 +353,8 @@ class EmittanceMeterAnalysis(object):
             self.xp2_data.append(res["xp2"])
             self.image_data.append(res["pic_proc"])
             self.image_center_data.append(res["xc"])
+        if self.update_callback is not None:
+            self.update_callback(res)
 
     def calc_emittance(self):
         with self.data_lock:

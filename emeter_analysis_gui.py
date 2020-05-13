@@ -39,6 +39,9 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
         self.image_height = 240
         self.px = 5.0 / self.image_width
 
+        self.scan_n_pos = None
+        self.scan_pos = None
+
         self.file_model = QtWidgets.QFileSystemModel()
         self.file_model.setFilter(QtCore.QDir.NoDotAndDotDot | QtCore.QDir.Files)
         # self.path = QtCore.QDir("./data")
@@ -46,6 +49,8 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
         self.file_model.setRootPath(self.path)
         # self.file_model = QtGui.QStandardItemModel()
         self.dataset_model = QtGui.QStandardItemModel()
+
+        self.charge_plot = None
 
         self.ui = Ui_Dialog()
         self.ui.setupUi(self)
@@ -77,6 +82,14 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
         self.ui.mask_spinbox.editingFinished.connect(self.process_image)
 
         self.ui.start_analysis_button.clicked.connect(self.start_analysis)
+
+        color_charge = np.array([40, 240, 100])
+
+        self.ui.plot_widget.showGrid(True, True)
+        self.ui.plot_widget.addLegend()
+        self.ui.plot_widget.setLabel("bottom", "pos / mm")
+        self.charge_plot = self.ui.plot_widget.plot(pen=None, symbol="d", size=15, name="charge",
+                                                    symbolBrush=pq.mkBrush(color_charge), symbolPen=None)
 
     def parse_directory(self, pathname):
         filelist = glob.glob(os.path.join(pathname, "*.npy"))
@@ -190,7 +203,27 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
         sel_ind = self.ui.dataset_treeview.selectedIndexes()
         logger.info("Starting analysis of dataset {0}".format(sel_ind[0].data()))
         dataset = sel_ind[0].data()
-        self.em_ana.analyze_scan(dataset, self.ui.bkg_spinbox.value())
+        n_pos = self.em_ana.analyze_scan_mp(dataset, sum_images_for_pos=True,
+                                            ready_callback=self.analysis_ready,
+                                            update_callback=self.anaylysis_update)
+
+        self.scan_n_pos = n_pos
+        self.scan_pos = 0
+        self.ui.analysis_progressbar.setValue(0)
+
+    def analysis_ready(self, res):
+        logger.info("Analysis complete. Result: {0}".format(res))
+        self.ui.eps_label.setText("{0:.3f} um x rad".format(res * 1e6))
+        self.ui.eps_n_label.setText("{0:.3f} um x rad".format(res * 1e6 * self.ui.beamenergy_spinbox.value() / 0.511))
+        self.ui.sigma_x_label.setText("{0:.2f} mm".format(np.sqrt(self.em_ana.x2_e) * 1e3))
+        self.ui.xp_label.setText("{0:.2f} x 1e-3".format(np.sqrt(self.em_ana.xp2_e) * 1e3))
+        self.charge_plot.setData(x=self.em_ana.pos_data, y=self.em_ana.charge_data)
+
+    def anaylysis_update(self, update):
+        self.scan_pos += 1
+        percent = int((100.0 * self.scan_pos) / self.scan_n_pos)
+        logger.info("Analysis update: {0}/{1}".format(self.scan_pos, self.scan_n_pos))
+        self.ui.analysis_progressbar.setValue(percent)
 
     def process_image2(self, index=None):
         if index is None:
