@@ -50,6 +50,8 @@ def process_image(pic, filename, slit_pos, parameter_dict):
     px = parameter_dict["px"]
     dist = parameter_dict["dist"]
 
+    roi_w = parameter_dict["roi_width"]
+
     pic_proc = medfilt2d(np.double(pic), kernel)
     t01 = time.time()
     # Background level from first 20 columns, one level for each row (the background structure is banded):
@@ -68,7 +70,7 @@ def process_image(pic, filename, slit_pos, parameter_dict):
 
     # Assume spot is in the central +-50 vertical pixels of the ROI. Get the index for the maximum value
     xc = pic_proc[pic_proc.shape[0] // 2 - 50:pic_proc.shape[0] // 2 + 50, :].sum(0).argmax()
-    xs = 100
+    xs = roi_w
     logger.debug("x0: {0}, x1: {1}".format(x0_good.shape, x1_good.shape))
     logger.debug("xc: {0}, xs: {1}".format(xc, xs))
     # Cut an new ROI around the central pixel column xc, width xs
@@ -127,6 +129,8 @@ class EmittanceMeterAnalysis(object):
         self.roi_h = 700
         self.roi_l = 0
         self.roi_w = 1400
+
+        self.roi_small_w = 150
 
         self.kernel = 5
         self.bkg_cut = "auto"
@@ -283,6 +287,7 @@ class EmittanceMeterAnalysis(object):
             parameter_dict["bkg_cut"] = self.bkg_cut
             parameter_dict["px"] = self.px
             parameter_dict["dist"] = self.dist
+            parameter_dict["roi_width"] = self.roi_small_w
             roi_t = self.roi_t
             roi_h = self.roi_h
             roi_l = self.roi_l
