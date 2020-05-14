@@ -144,22 +144,6 @@
          </property>
         </widget>
        </item>
-       <item row="8" column="1">
-        <widget class="QSpinBox" name="bkg_spinbox">
-         <property name="maximumSize">
-          <size>
-           <width>16777209</width>
-           <height>16777215</height>
-          </size>
-         </property>
-         <property name="maximum">
-          <number>65000</number>
-         </property>
-         <property name="value">
-          <number>7</number>
-         </property>
-        </widget>
-       </item>
        <item row="5" column="0">
         <widget class="QLabel" name="label_12">
          <property name="text">
@@ -228,50 +212,12 @@
          </property>
         </widget>
        </item>
-       <item row="16" column="0">
-        <widget class="QLabel" name="label_9">
-         <property name="text">
-          <string>Show</string>
-         </property>
-        </widget>
-       </item>
        <item row="4" column="0">
         <widget class="QLabel" name="label_5">
          <property name="text">
           <string>ROI width</string>
          </property>
         </widget>
-       </item>
-       <item row="16" column="1">
-        <layout class="QHBoxLayout" name="horizontalLayout_2">
-         <property name="bottomMargin">
-          <number>6</number>
-         </property>
-         <item>
-          <widget class="QRadioButton" name="raw_radiobutton">
-           <property name="text">
-            <string>Raw</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QRadioButton" name="processed_radiobutton">
-           <property name="text">
-            <string>Proc</string>
-           </property>
-           <property name="checked">
-            <bool>true</bool>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QRadioButton" name="tight_radiobutton">
-           <property name="text">
-            <string>Tight</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
        </item>
        <item row="0" column="1">
         <widget class="QLabel" name="image_size_label">
@@ -366,6 +312,33 @@
          </property>
         </widget>
        </item>
+       <item row="8" column="1">
+        <layout class="QHBoxLayout" name="horizontalLayout_4">
+         <item>
+          <widget class="QSpinBox" name="bkg_spinbox">
+           <property name="maximumSize">
+            <size>
+             <width>16777209</width>
+             <height>16777215</height>
+            </size>
+           </property>
+           <property name="maximum">
+            <number>65000</number>
+           </property>
+           <property name="value">
+            <number>5</number>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QRadioButton" name="auto_bkg_radiobutton">
+           <property name="text">
+            <string>Auto</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
       </layout>
      </item>
     </layout>
@@ -373,6 +346,9 @@
    <item>
     <layout class="QVBoxLayout" name="verticalLayout_2">
      <property name="rightMargin">
+      <number>6</number>
+     </property>
+     <property name="bottomMargin">
       <number>6</number>
      </property>
      <item>
@@ -384,6 +360,67 @@
         </sizepolicy>
        </property>
       </widget>
+     </item>
+     <item>
+      <layout class="QHBoxLayout" name="horizontalLayout_5">
+       <property name="rightMargin">
+        <number>6</number>
+       </property>
+       <property name="bottomMargin">
+        <number>6</number>
+       </property>
+       <item>
+        <widget class="QLabel" name="label_9">
+         <property name="text">
+          <string>Show</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_2">
+         <property name="bottomMargin">
+          <number>6</number>
+         </property>
+         <item>
+          <widget class="QRadioButton" name="raw_radiobutton">
+           <property name="text">
+            <string>Raw</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QRadioButton" name="processed_radiobutton">
+           <property name="text">
+            <string>Proc</string>
+           </property>
+           <property name="checked">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QRadioButton" name="tight_radiobutton">
+           <property name="text">
+            <string>Tight</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <spacer name="horizontalSpacer">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>40</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
      </item>
      <item>
       <widget class="Line" name="line">
@@ -409,6 +446,71 @@
        </item>
       </layout>
      </item>
+     <item>
+      <layout class="QHBoxLayout" name="horizontalLayout_6">
+       <property name="rightMargin">
+        <number>6</number>
+       </property>
+       <property name="bottomMargin">
+        <number>6</number>
+       </property>
+       <item>
+        <widget class="QLabel" name="label_20">
+         <property name="text">
+          <string>Plot</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_7">
+         <item>
+          <widget class="QRadioButton" name="charge_radiobutton">
+           <property name="text">
+            <string>Charge</string>
+           </property>
+           <property name="checked">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QRadioButton" name="xp_radiobutton">
+           <property name="text">
+            <string>x'</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QRadioButton" name="xp2_radiobutton">
+           <property name="text">
+            <string>x'²</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QRadioButton" name="xc_radiobutton">
+           <property name="text">
+            <string>x center</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <spacer name="horizontalSpacer_2">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>40</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </item>
     </layout>
    </item>
    <item>
@@ -416,6 +518,34 @@
      <property name="leftMargin">
       <number>6</number>
      </property>
+     <item row="10" column="0">
+      <widget class="QLabel" name="label_27">
+       <property name="text">
+        <string>&lt;x²&gt;</string>
+       </property>
+      </widget>
+     </item>
+     <item row="13" column="0">
+      <widget class="QLabel" name="label_29">
+       <property name="text">
+        <string/>
+       </property>
+      </widget>
+     </item>
+     <item row="12" column="0">
+      <widget class="QLabel" name="label_31">
+       <property name="text">
+        <string>&lt;xx'&gt;</string>
+       </property>
+      </widget>
+     </item>
+     <item row="11" column="0">
+      <widget class="QLabel" name="label_30">
+       <property name="text">
+        <string>&lt;x'²&gt;</string>
+       </property>
+      </widget>
+     </item>
      <item row="6" column="0">
       <widget class="QLabel" name="label_25">
        <property name="text">
@@ -437,7 +567,7 @@
        </property>
       </widget>
      </item>
-     <item row="12" column="1">
+     <item row="15" column="1">
       <widget class="QLabel" name="eps_n_label">
        <property name="text">
         <string>-.--</string>
@@ -458,37 +588,10 @@
        </property>
       </widget>
      </item>
-     <item row="7" column="0">
-      <spacer name="verticalSpacer_2">
-       <property name="orientation">
-        <enum>Qt::Vertical</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>20</width>
-         <height>40</height>
-        </size>
-       </property>
-      </spacer>
-     </item>
-     <item row="9" column="0">
-      <widget class="QLabel" name="label_19">
-       <property name="text">
-        <string>Beam width sigma</string>
-       </property>
-      </widget>
-     </item>
-     <item row="5" column="0">
-      <widget class="QLabel" name="label_17">
-       <property name="text">
-        <string/>
-       </property>
-      </widget>
-     </item>
-     <item row="11" column="0">
-      <widget class="QLabel" name="label_24">
-       <property name="text">
-        <string>Emittance</string>
+     <item row="0" column="0" colspan="2">
+      <widget class="QProgressBar" name="image_progressbar">
+       <property name="value">
+        <number>0</number>
        </property>
       </widget>
      </item>
@@ -499,16 +602,24 @@
        </property>
       </widget>
      </item>
-     <item row="1" column="1">
-      <widget class="QLabel" name="bkg_label">
-       <property name="minimumSize">
-        <size>
-         <width>50</width>
-         <height>0</height>
-        </size>
-       </property>
+     <item row="15" column="0">
+      <widget class="QLabel" name="label_28">
        <property name="text">
-        <string>-.-</string>
+        <string>Normalized emittance</string>
+       </property>
+      </widget>
+     </item>
+     <item row="9" column="1">
+      <widget class="QLabel" name="sigma_x_label">
+       <property name="text">
+        <string>-.--</string>
+       </property>
+      </widget>
+     </item>
+     <item row="14" column="0">
+      <widget class="QLabel" name="label_24">
+       <property name="text">
+        <string>Emittance</string>
        </property>
       </widget>
      </item>
@@ -526,22 +637,28 @@
        </property>
       </widget>
      </item>
-     <item row="9" column="1">
-      <widget class="QLabel" name="sigma_x_label">
+     <item row="7" column="0">
+      <spacer name="verticalSpacer_2">
+       <property name="orientation">
+        <enum>Qt::Vertical</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>20</width>
+         <height>40</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item row="9" column="0">
+      <widget class="QLabel" name="label_19">
        <property name="text">
-        <string>-.--</string>
+        <string>σₓ / mm</string>
        </property>
       </widget>
      </item>
-     <item row="11" column="1">
+     <item row="14" column="1">
       <widget class="QLabel" name="eps_label">
-       <property name="text">
-        <string>-.--</string>
-       </property>
-      </widget>
-     </item>
-     <item row="10" column="1">
-      <widget class="QLabel" name="xp_label">
        <property name="text">
         <string>-.--</string>
        </property>
@@ -561,24 +678,44 @@
        </property>
       </widget>
      </item>
-     <item row="12" column="0">
-      <widget class="QLabel" name="label_28">
+     <item row="1" column="1">
+      <widget class="QLabel" name="bkg_label">
+       <property name="minimumSize">
+        <size>
+         <width>50</width>
+         <height>0</height>
+        </size>
+       </property>
        <property name="text">
-        <string>Normalized emittance</string>
+        <string>-.-</string>
        </property>
       </widget>
      </item>
-     <item row="10" column="0">
-      <widget class="QLabel" name="label_20">
+     <item row="5" column="0">
+      <widget class="QLabel" name="label_17">
        <property name="text">
-        <string>Beam divergence</string>
+        <string/>
        </property>
       </widget>
      </item>
-     <item row="0" column="0" colspan="2">
-      <widget class="QProgressBar" name="image_progressbar">
-       <property name="value">
-        <number>0</number>
+     <item row="10" column="1">
+      <widget class="QLabel" name="x2_e_label">
+       <property name="text">
+        <string>-.--</string>
+       </property>
+      </widget>
+     </item>
+     <item row="11" column="1">
+      <widget class="QLabel" name="xp2_e_label">
+       <property name="text">
+        <string>-.--</string>
+       </property>
+      </widget>
+     </item>
+     <item row="12" column="1">
+      <widget class="QLabel" name="xxp_e_label">
+       <property name="text">
+        <string>-.--</string>
        </property>
       </widget>
      </item>

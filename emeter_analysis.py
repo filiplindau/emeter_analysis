@@ -159,8 +159,8 @@ class EmittanceMeterAnalysis(object):
         self.param_lock = threading.Lock()
         self.data_lock = threading.Lock()
 
-        self.ready_callback = None
         self.update_callback = None
+        self.update_signal = None
 
     def analyze_scan(self, filename, bkg_cut=7):
         t_start = time.time()
@@ -242,12 +242,14 @@ class EmittanceMeterAnalysis(object):
 
         return self.eps
 
-    def analyze_scan_mp(self, filename, sum_images_for_pos=False, ready_callback=None, update_callback=None):
+    def analyze_scan_mp(self, filename, sum_images_for_pos=False, ready_callback=None, update_callback=None,
+                        ready_signal=None, update_signal=None):
         full_name = os.path.join(self.path, "{0}-*.npy".format(filename))
         file_list = glob.glob(full_name)
         logger.info("Looking for {0}. Found {1} files".format(full_name, len(file_list)))
 
         self.update_callback = update_callback
+        self.update_signal = update_signal
 
         if sum_images_for_pos:
             pos_list = list()
@@ -256,11 +258,12 @@ class EmittanceMeterAnalysis(object):
         else:
             n_pos = len(file_list)
 
-        thread = threading.Thread(target=self.run_scan, args=(file_list, sum_images_for_pos, ready_callback))
+        thread = threading.Thread(target=self.run_scan, args=(file_list, sum_images_for_pos,
+                                                              ready_callback, ready_signal))
         thread.start()
         return n_pos
 
-    def run_scan(self, file_list, sum_images_for_pos, ready_callback):
+    def run_scan(self, file_list, sum_images_for_pos, ready_callback, ready_signal):
         logger.info("Run thread starting")
         t0 = time.time()
         with self.data_lock:
@@ -298,7 +301,7 @@ class EmittanceMeterAnalysis(object):
                     try:
                         pic = np.load(file)
                         n_f += 1
-                    except ValueError:
+                    except (ValueError, IOError):
                         logger.error("File {0} corrupted. Skipping.".format(file))
                         if self.update_callback is not None:
                             self.update_callback((file, None))
@@ -342,6 +345,8 @@ class EmittanceMeterAnalysis(object):
         logger.info("Total time: {0}".format(time.time() - t0))
         if ready_callback is not None:
             ready_callback(eps)
+        if ready_signal is not None:
+            ready_signal.emit(eps)
         return eps
 
     def result_callback(self, res):
@@ -355,6 +360,8 @@ class EmittanceMeterAnalysis(object):
             self.image_center_data.append(res["xc"])
         if self.update_callback is not None:
             self.update_callback(res)
+        if self.update_signal is not None:
+            self.update_signal.emit(res)
 
     def calc_emittance(self):
         with self.data_lock:

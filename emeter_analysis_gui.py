@@ -28,10 +28,13 @@ f = logging.Formatter("%(asctime)s - %(module)s.   %(funcName)s - %(levelname)s 
 fh = logging.StreamHandler()
 fh.setFormatter(f)
 logger.addHandler(fh)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 
 class EmittanceMeterViewer(QtWidgets.QWidget):
+    ready_signal = QtCore.Signal(object)  ## emittance
+    update_signal = QtCore.Signal(object)  ## result
+
     def __init__(self, parent=None):
         QtWidgets.QWidget.__init__(self, parent)
 
@@ -80,8 +83,15 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
         self.ui.roi_width_spinbox.editingFinished.connect(self.process_image)
         self.ui.medfilt_spinbox.editingFinished.connect(self.process_image)
         self.ui.mask_spinbox.editingFinished.connect(self.process_image)
+        self.ui.charge_radiobutton.toggled.connect(self.update_plot)
+        self.ui.xp_radiobutton.toggled.connect(self.update_plot)
+        self.ui.xp2_radiobutton.toggled.connect(self.update_plot)
+        self.ui.xc_radiobutton.toggled.connect(self.update_plot)
 
         self.ui.start_analysis_button.clicked.connect(self.start_analysis)
+
+        self.ready_signal.connect(self.analysis_ready)
+        self.update_signal.connect(self.analysis_update)
 
         color_charge = np.array([40, 240, 100])
 
@@ -195,7 +205,10 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
         parameter_dict["rotation"] = self.ui.rotation_spinbox.value() * np.pi / 180
         parameter_dict["kernel"] = self.ui.medfilt_spinbox.value()
         parameter_dict["mask_kernel"] = self.ui.mask_spinbox.value()
-        parameter_dict["bkg_cut"] = self.ui.bkg_spinbox.value()
+        if self.ui.auto_bkg_radiobutton.isChecked():
+            parameter_dict["bkg_cut"] = "auto"
+        else:
+            parameter_dict["bkg_cut"] = self.ui.bkg_spinbox.value()
         parameter_dict["px"] = self.ui.pixelsize_spinbox.value() * 1e-6
         parameter_dict["dist"] = self.ui.slit_screen_distance_spinbox.value() * 1e-2
         self.em_ana.set_parameters(parameter_dict)
@@ -204,8 +217,8 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
         logger.info("Starting analysis of dataset {0}".format(sel_ind[0].data()))
         dataset = sel_ind[0].data()
         n_pos = self.em_ana.analyze_scan_mp(dataset, sum_images_for_pos=True,
-                                            ready_callback=self.analysis_ready,
-                                            update_callback=self.anaylysis_update)
+                                            ready_signal=self.ready_signal,
+                                            update_signal=self.update_signal)
 
         self.scan_n_pos = n_pos
         self.scan_pos = 0
@@ -213,17 +226,34 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
 
     def analysis_ready(self, res):
         logger.info("Analysis complete. Result: {0}".format(res))
-        self.ui.eps_label.setText("{0:.3f} um x rad".format(res * 1e6))
-        self.ui.eps_n_label.setText("{0:.3f} um x rad".format(res * 1e6 * self.ui.beamenergy_spinbox.value() / 0.511))
+        self.ui.eps_label.setText("{0:.2f} um x rad".format(res * 1e6))
+        self.ui.eps_n_label.setText("{0:.2f} um x rad".format(res * 1e6 * self.ui.beamenergy_spinbox.value() / 0.511))
         self.ui.sigma_x_label.setText("{0:.2f} mm".format(np.sqrt(self.em_ana.x2_e) * 1e3))
-        self.ui.xp_label.setText("{0:.2f} x 1e-3".format(np.sqrt(self.em_ana.xp2_e) * 1e3))
-        self.charge_plot.setData(x=self.em_ana.pos_data, y=self.em_ana.charge_data)
+        self.ui.x2_e_label.setText("{0:.2e}".format(np.sqrt(self.em_ana.x2_e)))
+        self.ui.xp2_e_label.setText("{0:.2e}".format(np.sqrt(self.em_ana.xp2_e)))
+        self.ui.xxp_e_label.setText("{0:.2e}".format(np.sqrt(self.em_ana.xxp_e)))
+        self.update_plot()
 
-    def anaylysis_update(self, update):
+    def analysis_update(self, update):
         self.scan_pos += 1
         percent = int((100.0 * self.scan_pos) / self.scan_n_pos)
         logger.info("Analysis update: {0}/{1}".format(self.scan_pos, self.scan_n_pos))
         self.ui.analysis_progressbar.setValue(percent)
+
+    def update_plot(self):
+        if self.em_ana.pos_data is not None:
+            x_data = self.em_ana.pos_data * 1e3
+            if self.ui.charge_radiobutton.isChecked():
+                y_data = self.em_ana.charge_data
+            elif self.ui.xp_radiobutton.isChecked():
+                y_data = self.em_ana.xp_data
+            elif self.ui.xp2_radiobutton.isChecked():
+                y_data = self.em_ana.xp2_data
+            elif self.ui.xc_radiobutton.isChecked():
+                y_data = self.em_ana.image_center_data
+            else:
+                y_data = None
+            self.charge_plot.setData(x=x_data, y=y_data)
 
     def process_image2(self, index=None):
         if index is None:
