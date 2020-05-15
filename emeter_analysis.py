@@ -50,7 +50,7 @@ def process_image(pic, filename, slit_pos, parameter_dict):
     px = parameter_dict["px"]
     dist = parameter_dict["dist"]
 
-    roi_w = parameter_dict["roi_width"]
+    roi_w = parameter_dict["small_roi"]
 
     pic_proc = medfilt2d(np.double(pic), kernel)
     t01 = time.time()
@@ -58,20 +58,20 @@ def process_image(pic, filename, slit_pos, parameter_dict):
     bkg_level = pic_proc[:, 0:20].mean(1)
     logger.debug("{0:.1f}".format(bkg_level.mean()))
     if bkg_cut == "auto":
-        bkg_cut = bkg_level.max() + 1
+        bkg_cut = bkg_level.max() + 0.5
     pic_proc = np.maximum(0, pic_proc - 1.1 * bkg_level[:, np.newaxis])
 
-    x = np.arange(pic_proc.shape[1])
-    line_y = pic_proc.sum(1)
-    x0 = ((pic_proc * x[np.newaxis, :]).sum(1) / line_y)
-    x1 = (pic_proc * (x[np.newaxis, :] - x0[:, np.newaxis]) ** 2).sum(1) / line_y
-    x0_good = x0[~np.isnan(x0)]
-    x1_good = x1[~np.isnan(x1)]
+    ## Center of gravity base spot finding:
+    # x = np.arange(pic_proc.shape[1])
+    # line_y = pic_proc.sum(1)
+    # x0 = ((pic_proc * x[np.newaxis, :]).sum(1) / line_y)
+    # x1 = (pic_proc * (x[np.newaxis, :] - x0[:, np.newaxis]) ** 2).sum(1) / line_y
+    # x0_good = x0[~np.isnan(x0)]
+    # x1_good = x1[~np.isnan(x1)]
 
     # Assume spot is in the central +-50 vertical pixels of the ROI. Get the index for the maximum value
     xc = pic_proc[pic_proc.shape[0] // 2 - 50:pic_proc.shape[0] // 2 + 50, :].sum(0).argmax()
     xs = roi_w
-    logger.debug("x0: {0}, x1: {1}".format(x0_good.shape, x1_good.shape))
     logger.debug("xc: {0}, xs: {1}".format(xc, xs))
     # Cut an new ROI around the central pixel column xc, width xs
     pic_roi2 = np.zeros((pic.shape[0], xs + 1))
@@ -108,17 +108,17 @@ def process_image(pic, filename, slit_pos, parameter_dict):
     pic_proc3 = ndimage.rotate(pic_proc3, rotation * 180 / np.pi, reshape=False)
 
     line_x = pic_proc3.sum(0)
-    x = np.arange(line_x.shape[0]) * px
+    x = (np.arange(line_x.shape[0]) - line_x.shape[0] / 2) * px
     if charge > 0:
         x0 = (x * line_x).sum() / charge
         xp2 = np.sqrt(((x - x0) ** 2 * line_x).sum() / charge) / dist
         xp = (x0 + xc * px - slit_pos) / dist
     else:
-        x0 = np.nan
+        x0 = xc * px
         xp = 0
         xp2 = 0
-    result = {"file_name": filename, "charge": charge, "xc": xc, "xp": xp, "xp2": xp2,
-              "pic_proc": pic_proc3, "slit_pos": slit_pos}
+    result = {"file_name": filename, "charge": charge, "x0": x0, "xc": xc, "xp": xp, "xp2": xp2,
+              "pic_proc": pic_proc3, "slit_pos": slit_pos, "pic_raw": pic_roi2}
     return result
 
 
@@ -140,10 +140,12 @@ class EmittanceMeterAnalysis(object):
         self.dist = 0.23
         self.px = 13.3e-6
 
-        self.image_data = list()
+        self.pic_proc_data = list()
+        self.pic_raw_data = list()
         self.pos_data = None
         self.charge_data = None
         self.image_center_data = None
+        self.x0_data = None
         self.xp_data = None
         self.xp2_data = None
 
@@ -171,8 +173,9 @@ class EmittanceMeterAnalysis(object):
         full_name = os.path.join(self.path, "{0}-*.npy".format(filename))
         file_list = glob.glob(full_name)
         logger.info("Looking for {0}. Found {1} files".format(full_name, len(file_list)))
-        image_data = list()
-        image_center_data = list()
+        pic_proc_data = list()
+        pic_raw_data = list()
+        pic_center_data = list()
         charge_data = list()
         pos_data = list()
         xp_data = list()
@@ -198,8 +201,8 @@ class EmittanceMeterAnalysis(object):
                 charge, xp, xp2 = self.analyse_image(pp1, pos, xc)
                 t3 = time.time()
                 pos_data.append(pos)
-                image_data.append(pp1)
-                image_center_data.append(xc)
+                pic_proc_data.append(pp1)
+                pic_center_data.append(xc)
                 charge_data.append(charge)
                 xp_data.append(xp)
                 xp2_data.append(xp2)
@@ -210,10 +213,10 @@ class EmittanceMeterAnalysis(object):
                                                              1e3*(t3-t2)))
         ind_sort = np.argsort(np.array(pos_data))
         ind_good = ~np.isnan(np.array(xp2_data)[ind_sort])
-        self.image_data = image_data
+        self.pic_proc_data = pic_proc_data
         self.pos_data = np.array(pos_data)[ind_sort][ind_good]
         self.charge_data = np.array(charge_data)[ind_sort][ind_good]
-        self.image_center_data = np.array(image_center_data)[ind_sort][ind_good]
+        self.image_center_data = np.array(pic_center_data)[ind_sort][ind_good]
         self.xp_data = np.array(xp_data)[ind_sort][ind_good]
         self.xp2_data = np.array(xp2_data)[ind_sort][ind_good]
         p_u = np.unique(self.pos_data)
@@ -262,19 +265,21 @@ class EmittanceMeterAnalysis(object):
         else:
             n_pos = len(file_list)
 
-        thread = threading.Thread(target=self.run_scan, args=(file_list, sum_images_for_pos,
-                                                              ready_callback, ready_signal))
+        thread = threading.Thread(target=self.run_scan_mp, args=(file_list, sum_images_for_pos,
+                                                                 ready_callback, ready_signal))
         thread.start()
         return n_pos
 
-    def run_scan(self, file_list, sum_images_for_pos, ready_callback, ready_signal):
+    def run_scan_mp(self, file_list, sum_images_for_pos, ready_callback, ready_signal):
         logger.info("Run thread starting")
         t0 = time.time()
         with self.data_lock:
-            self.image_data = list()
+            self.pic_proc_data = list()
+            self.pic_raw_data = list()
             self.image_center_data = list()
             self.charge_data = list()
             self.pos_data = list()
+            self.x0_data = list()
             self.xp_data = list()
             self.xp2_data = list()
 
@@ -287,7 +292,7 @@ class EmittanceMeterAnalysis(object):
             parameter_dict["bkg_cut"] = self.bkg_cut
             parameter_dict["px"] = self.px
             parameter_dict["dist"] = self.dist
-            parameter_dict["roi_width"] = self.roi_small_w
+            parameter_dict["small_roi"] = self.roi_small_w
             roi_t = self.roi_t
             roi_h = self.roi_h
             roi_l = self.roi_l
@@ -316,6 +321,8 @@ class EmittanceMeterAnalysis(object):
                 logger.info("Processing image at pos {0}".format(pos_s))
                 pos = np.double(pos_s) * 1e-3
                 pool.apply_async(process_image, (pic_roi, pos_s, pos, parameter_dict), callback=self.result_callback)
+                if self.update_signal is not None:
+                    self.update_signal.emit("load")
         else:
             for ind, file in enumerate(file_list):
                 t0 = time.time()
@@ -334,6 +341,9 @@ class EmittanceMeterAnalysis(object):
 
                     pic_roi = np.double(pic[roi_t:roi_t + roi_h, roi_l:roi_l + roi_w])
                     pool.apply_async(process_image, (pic_roi, file, pos, parameter_dict), callback=self.result_callback)
+                    if self.update_signal is not None:
+                        self.update_signal.emit("load")
+
         pool.close()
         pool.join()
         with self.data_lock:
@@ -342,9 +352,11 @@ class EmittanceMeterAnalysis(object):
             self.pos_data = np.array(self.pos_data)[ind_sort][ind_good]
             self.charge_data = np.array(self.charge_data)[ind_sort][ind_good]
             self.image_center_data = np.array(self.image_center_data)[ind_sort][ind_good]
+            self.x0_data = np.array(self.x0_data)[ind_sort][ind_good]
             self.xp_data = np.array(self.xp_data)[ind_sort][ind_good]
             self.xp2_data = np.array(self.xp2_data)[ind_sort][ind_good]
-            self.image_data = np.array(self.image_data)[ind_sort, :, :][ind_good, :, :]
+            self.pic_proc_data = np.array(self.pic_proc_data)[ind_sort, :, :][ind_good, :, :]
+            self.pic_raw_data = np.array(self.pic_raw_data)[ind_sort, :, :][ind_good, :, :]
 
         eps = self.calc_emittance()
         logger.info("Total time: {0}".format(time.time() - t0))
@@ -361,8 +373,10 @@ class EmittanceMeterAnalysis(object):
             self.charge_data.append(res["charge"])
             self.xp_data.append(res["xp"])
             self.xp2_data.append(res["xp2"])
-            self.image_data.append(res["pic_proc"])
+            self.pic_proc_data.append(res["pic_proc"])
+            self.pic_raw_data.append(res["pic_raw"])
             self.image_center_data.append(res["xc"])
+            self.x0_data.append(res["x0"])
         if self.update_callback is not None:
             self.update_callback(res)
         if self.update_signal is not None:
@@ -380,7 +394,7 @@ class EmittanceMeterAnalysis(object):
                 xp_u[ind] = self.xp_data[p_ind].mean()
                 xp2_u[ind] = self.xp2_data[p_ind].mean()
                 ch_u[ind] = self.charge_data[p_ind].mean()
-                cent_u[ind] = self.image_center_data[p_ind].mean() * self.px
+                cent_u[ind] = (self.image_center_data[p_ind] * self.px + self.x0_data[p_ind]).mean()
         self.pos_u = p_u
         self.ch_u = ch_u
         self.center_u = cent_u
@@ -540,6 +554,10 @@ class EmittanceMeterAnalysis(object):
                 self.dist = parameter_dict["dist"]
             except KeyError:
                 logger.error("Calibration")
+            try:
+                self.roi_small_w = parameter_dict["small_roi"]
+            except KeyError:
+                logger.error("Small ROI width")
 
 
 if __name__ == "__main__":

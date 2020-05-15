@@ -54,6 +54,10 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
         self.dataset_model = QtGui.QStandardItemModel()
 
         self.charge_plot = None
+        self.line_plot = None
+        self.xp_plot = None
+        self.xp2_plot = None
+        self.image_autorange = True
 
         self.ui = Ui_Dialog()
         self.ui.setupUi(self)
@@ -72,21 +76,26 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
         self.ui.dataset_treeview.clicked.connect(self.parse_dataset)
         self.ui.file_listview.setModel(self.file_model)
         self.ui.file_listview.setRootIndex(self.file_model.index(self.path))
-        self.ui.file_listview.activated.connect(self.process_image)
-        self.ui.file_listview.clicked.connect(self.process_image)
-        self.ui.processed_radiobutton.toggled.connect(self.process_image)
-        self.ui.tight_radiobutton.toggled.connect(self.process_image)
-        self.ui.bkg_spinbox.editingFinished.connect(self.process_image)
-        self.ui.roi_top_spinbox.editingFinished.connect(self.process_image)
-        self.ui.roi_height_spinbox.editingFinished.connect(self.process_image)
-        self.ui.roi_left_spinbox.editingFinished.connect(self.process_image)
-        self.ui.roi_width_spinbox.editingFinished.connect(self.process_image)
-        self.ui.medfilt_spinbox.editingFinished.connect(self.process_image)
-        self.ui.mask_spinbox.editingFinished.connect(self.process_image)
+        self.ui.file_listview.activated.connect(self.update_image)
+        self.ui.file_listview.clicked.connect(self.update_image)
+        self.ui.processed_radiobutton.toggled.connect(self.update_image)
+        self.ui.tight_radiobutton.toggled.connect(self.update_image)
+        self.ui.file_radiobutton.toggled.connect(self.update_image)
+        self.ui.scan_radiobutton.toggled.connect(self.update_image)
+        self.ui.image_slider.valueChanged.connect(self.update_image_select)
+        self.ui.image_ind_spinbox.editingFinished.connect(self.update_image_select)
+        self.ui.bkg_spinbox.editingFinished.connect(self.update_image)
+        self.ui.roi_top_spinbox.editingFinished.connect(self.update_image)
+        self.ui.roi_height_spinbox.editingFinished.connect(self.update_image)
+        self.ui.roi_left_spinbox.editingFinished.connect(self.update_image)
+        self.ui.roi_width_spinbox.editingFinished.connect(self.update_image)
+        self.ui.medfilt_spinbox.editingFinished.connect(self.update_image)
+        self.ui.mask_spinbox.editingFinished.connect(self.update_image)
         self.ui.charge_radiobutton.toggled.connect(self.update_plot)
+        self.ui.line_radiobutton.toggled.connect(self.update_plot)
         self.ui.xp_radiobutton.toggled.connect(self.update_plot)
         self.ui.xp2_radiobutton.toggled.connect(self.update_plot)
-        self.ui.xc_radiobutton.toggled.connect(self.update_plot)
+        # self.ui.xc_radiobutton.toggled.connect(self.update_plot)
 
         self.ui.start_analysis_button.clicked.connect(self.start_analysis)
 
@@ -94,12 +103,21 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
         self.update_signal.connect(self.analysis_update)
 
         color_charge = np.array([40, 240, 100])
+        color_line = np.array([40, 80, 200])
+        color_xp = np.array([240, 40, 70])
+        color_xp2 = np.array([200, 140, 40])
 
         self.ui.plot_widget.showGrid(True, True)
         self.ui.plot_widget.addLegend()
         self.ui.plot_widget.setLabel("bottom", "pos / mm")
         self.charge_plot = self.ui.plot_widget.plot(pen=None, symbol="d", size=15, name="charge",
                                                     symbolBrush=pq.mkBrush(color_charge), symbolPen=None)
+        self.line_plot = self.ui.plot_widget.plot(pen=pq.mkPen(color_line), symbol="d", size=15, name="line",
+                                                  symbolBrush=None, symbolPen=None)
+        self.xp_plot = self.ui.plot_widget.plot(pen=None, symbol="d", size=15, name="xp",
+                                                symbolBrush=pq.mkBrush(color_xp), symbolPen=None)
+        self.xp2_plot = self.ui.plot_widget.plot(pen=None, symbol="d", size=15, name="xp^2",
+                                                 symbolBrush=pq.mkBrush(color_xp2), symbolPen=None)
 
     def parse_directory(self, pathname):
         filelist = glob.glob(os.path.join(pathname, "*.npy"))
@@ -189,11 +207,11 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
         self.ui.moment_2_label.setText("{0:.1f}".format(xp2 * 1e6))
 
         if self.ui.processed_radiobutton.isChecked():
-            self.ui.image_widget.setImage(pic_proc.transpose(), autoLevels=True)
+            self.ui.image_widget.setImage(pic_proc.transpose(), autoLevels=True, autoRange=self.image_autorange)
         elif self.ui.tight_radiobutton.isChecked():
-            self.ui.image_widget.setImage(pic_proc2.transpose(), autoLevels=True)
+            self.ui.image_widget.setImage(pic_proc2.transpose(), autoLevels=True, autoRange=self.image_autorange)
         else:
-            self.ui.image_widget.setImage(pic.transpose(), autoLevels=False)
+            self.ui.image_widget.setImage(pic.transpose(), autoLevels=False, autoRange=self.image_autorange)
 
     def start_analysis(self):
         parameter_dict = dict()
@@ -205,10 +223,13 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
         parameter_dict["rotation"] = self.ui.rotation_spinbox.value() * np.pi / 180
         parameter_dict["kernel"] = self.ui.medfilt_spinbox.value()
         parameter_dict["mask_kernel"] = self.ui.mask_spinbox.value()
+        parameter_dict["small_roi"] = self.ui.small_roi_spinbox.value()
         if self.ui.auto_bkg_radiobutton.isChecked():
             parameter_dict["bkg_cut"] = "auto"
+            logger.debug("Using auto bkg cut threshold")
         else:
             parameter_dict["bkg_cut"] = self.ui.bkg_spinbox.value()
+            logger.debug("Using bkg cut threshold {0}".format(self.ui.bkg_spinbox.value()))
         parameter_dict["px"] = self.ui.pixelsize_spinbox.value() * 1e-6
         parameter_dict["dist"] = self.ui.slit_screen_distance_spinbox.value() * 1e-2
         self.em_ana.set_parameters(parameter_dict)
@@ -216,27 +237,39 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
         sel_ind = self.ui.dataset_treeview.selectedIndexes()
         logger.info("Starting analysis of dataset {0}".format(sel_ind[0].data()))
         dataset = sel_ind[0].data()
-        n_pos = self.em_ana.analyze_scan_mp(dataset, sum_images_for_pos=True,
+        n_pos = self.em_ana.analyze_scan_mp(dataset,
+                                            sum_images_for_pos=self.ui.sum_images_radiobutton.isChecked(),
                                             ready_signal=self.ready_signal,
                                             update_signal=self.update_signal)
 
         self.scan_n_pos = n_pos
         self.scan_pos = 0
         self.ui.analysis_progressbar.setValue(0)
+        self.ui.x2_e_label.setText("-.--")
+        self.ui.xp2_e_label.setText("-.--")
+        self.ui.xxp_e_label.setText("-.--")
+        self.ui.sigma_x_label.setText("-.--")
+        self.ui.eps_label.setText("-.--")
+        self.ui.eps_n_label.setText("-.--")
+        self.image_autorange = True
 
     def analysis_ready(self, res):
         logger.info("Analysis complete. Result: {0}".format(res))
         self.ui.eps_label.setText("{0:.2f} um x rad".format(res * 1e6))
         self.ui.eps_n_label.setText("{0:.2f} um x rad".format(res * 1e6 * self.ui.beamenergy_spinbox.value() / 0.511))
         self.ui.sigma_x_label.setText("{0:.2f} mm".format(np.sqrt(self.em_ana.x2_e) * 1e3))
-        self.ui.x2_e_label.setText("{0:.2e}".format(np.sqrt(self.em_ana.x2_e)))
-        self.ui.xp2_e_label.setText("{0:.2e}".format(np.sqrt(self.em_ana.xp2_e)))
-        self.ui.xxp_e_label.setText("{0:.2e}".format(np.sqrt(self.em_ana.xxp_e)))
+        self.ui.x2_e_label.setText("{0:.2e}".format(self.em_ana.x2_e))
+        self.ui.xp2_e_label.setText("{0:.2e}".format(self.em_ana.xp2_e))
+        self.ui.xxp_e_label.setText("{0:.2e}".format(self.em_ana.xxp_e))
+        self.ui.analysis_progressbar.setValue(100)
+        self.ui.image_slider.setMaximum(self.em_ana.pic_raw_data.shape[0] - 1)
+        self.ui.image_slider.setValue(self.em_ana.pic_raw_data.shape[0] // 2)
+        self.update_image()
         self.update_plot()
 
     def analysis_update(self, update):
         self.scan_pos += 1
-        percent = int((100.0 * self.scan_pos) / self.scan_n_pos)
+        percent = int((100.0 * self.scan_pos) / self.scan_n_pos / 2)
         logger.info("Analysis update: {0}/{1}".format(self.scan_pos, self.scan_n_pos))
         self.ui.analysis_progressbar.setValue(percent)
 
@@ -245,15 +278,71 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
             x_data = self.em_ana.pos_data * 1e3
             if self.ui.charge_radiobutton.isChecked():
                 y_data = self.em_ana.charge_data
+                self.charge_plot.setData(x=x_data, y=y_data)
+                self.ui.plot_widget.clear()
+                self.ui.plot_widget.addItem(self.charge_plot)
+                self.ui.plot_widget.setLabel("bottom", "pos / mm")
             elif self.ui.xp_radiobutton.isChecked():
                 y_data = self.em_ana.xp_data
+                self.xp_plot.setData(x=x_data, y=y_data)
+                self.ui.plot_widget.clear()
+                self.ui.plot_widget.addItem(self.xp_plot)
+                self.ui.plot_widget.setLabel("bottom", "pos / mm")
             elif self.ui.xp2_radiobutton.isChecked():
                 y_data = self.em_ana.xp2_data
-            elif self.ui.xc_radiobutton.isChecked():
-                y_data = self.em_ana.image_center_data
+                self.xp2_plot.setData(x=x_data, y=y_data)
+                self.ui.plot_widget.clear()
+                self.ui.plot_widget.addItem(self.xp2_plot)
+                self.ui.plot_widget.setLabel("bottom", "pos / mm")
+            elif self.ui.line_radiobutton.isChecked():
+                sel_ind = self.ui.image_slider.value()
+                y_data = self.em_ana.pic_proc_data[sel_ind].sum(0)
+                x_data = np.arange(y_data.shape[0]) + self.em_ana.image_center_data[sel_ind] - y_data.shape[0] / 2
+
+                self.line_plot.setData(x=x_data, y=y_data)
+                self.ui.plot_widget.clear()
+                self.ui.plot_widget.addItem(self.line_plot)
+                self.ui.plot_widget.setLabel("bottom", "pos / pixels")
             else:
                 y_data = None
-            self.charge_plot.setData(x=x_data, y=y_data)
+
+    def update_image_select(self):
+        if self.sender() == self.ui.image_slider:
+            self.ui.image_ind_spinbox.blockSignals(True)
+            self.ui.image_ind_spinbox.setValue(self.ui.image_slider.value())
+            self.ui.image_ind_spinbox.blockSignals(False)
+        else:
+            self.ui.image_slider.blockSignals(True)
+            self.ui.image_slider.setValue(self.ui.image_ind_spinbox.value())
+            self.ui.image_slider.blockSignals(False)
+        if self.ui.scan_radiobutton.isChecked():
+            self.update_image()
+        if self.ui.line_radiobutton.isChecked():
+            self.update_plot()
+        try:
+            if self.em_ana.pos_data is not None:
+                pos = self.em_ana.pos_data[self.ui.image_slider.value()]
+                self.ui.image_sel_pos_label.setText("{0:.2f} mm".format(pos * 1e3))
+        except IndexError:
+            logger.warning("Index out of bounds for pos data, size {0}".format(len(self.em_ana.pos_data)))
+
+    def update_image(self, index=None):
+        if self.ui.file_radiobutton.isChecked():
+            self.ui.processed_radiobutton.setEnabled(True)
+            self.process_image(index)
+        else:
+            self.ui.processed_radiobutton.setDisabled(True)
+            sel_ind = self.ui.image_slider.value()
+            if self.ui.raw_radiobutton.isChecked():
+                pic = self.em_ana.pic_raw_data[sel_ind]
+                self.ui.image_widget.setImage(pic.transpose(), autoLevels=self.image_autorange,
+                                              autoRange=self.image_autorange)
+            elif self.ui.tight_radiobutton.isChecked():
+                pic = self.em_ana.pic_proc_data[sel_ind]
+                self.ui.image_widget.setImage(pic.transpose(), autoLevels=self.image_autorange,
+                                              autoRange=self.image_autorange)
+
+        self.image_autorange = False
 
     def process_image2(self, index=None):
         if index is None:
