@@ -37,6 +37,7 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
 
     def __init__(self, parent=None):
         QtWidgets.QWidget.__init__(self, parent)
+        self.settings = QtCore.QSettings('Maxlab', 'EmittanceMeterViewer')
 
         self.image_width = 240
         self.image_height = 240
@@ -47,11 +48,10 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
 
         self.file_model = QtWidgets.QFileSystemModel()
         self.file_model.setFilter(QtCore.QDir.NoDotAndDotDot | QtCore.QDir.Files)
-        # self.path = QtCore.QDir("./data")
         self.path = os.path.join(os.path.curdir, "data")
         self.file_model.setRootPath(self.path)
-        # self.file_model = QtGui.QStandardItemModel()
         self.dataset_model = QtGui.QStandardItemModel()
+        self.dataset_name = None
 
         self.charge_plot = None
         self.line_plot = None
@@ -119,6 +119,79 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
         self.xp2_plot = self.ui.plot_widget.plot(pen=None, symbol="d", size=15, name="xp^2",
                                                  symbolBrush=pq.mkBrush(color_xp2), symbolPen=None)
 
+        # Restore settings
+        val = self.settings.value("bkg_cut", "3.0", type=float)
+        self.ui.bkg_spinbox.setValue(val)
+        val = self.settings.value("bkg_auto", True, type=bool)
+        if val:
+            self.ui.auto_bkg_radiobutton.setChecked(True)
+        else:
+            self.ui.auto_bkg_radiobutton.setChecked(False)
+        val = self.settings.value("kernel_1", "5", type=int)
+        self.ui.medfilt_spinbox.setValue(val)
+        val = self.settings.value("kernel_2", "25", type=int)
+        self.ui.mask_spinbox.setValue(val)
+        val = self.settings.value("rotation", "3.15", type=float)
+        self.ui.rotation_spinbox.setValue(val)
+        val = self.settings.value("roi_small", "100", type=int)
+        self.ui.small_roi_spinbox.setValue(val)
+        val = self.settings.value("px", "13.3", type=float)
+        self.ui.pixelsize_spinbox.setValue(val)
+        val = self.settings.value("dist", "0.23", type=float)
+        self.ui.slit_screen_distance_spinbox.setValue(val)
+        val = self.settings.value("electron_energy", "3.31", type=float)
+        self.ui.beamenergy_spinbox.setValue(val)
+        val = self.settings.value("sum", True, type=bool)
+        if val:
+            self.ui.sum_images_radiobutton.setChecked(True)
+        else:
+            self.ui.each_image_radiobutton.setChecked(True)
+
+        self.dataset_name = self.settings.value("selected_dataset", "", type=str)
+
+        # Geometry setup
+        window_pos_x = self.settings.value('window_pos_x', 100, type=int)
+        window_pos_y = self.settings.value('window_pos_y', 100, type=int)
+        window_size_w = self.settings.value('window_size_w', 1100, type=int)
+        window_size_h = self.settings.value('window_size_h', 800, type=int)
+        if window_pos_y < 50:
+            window_pos_y = 50
+        self.setGeometry(window_pos_x, window_pos_y, window_size_w, window_size_h)
+
+    def closeEvent(self, event):
+        """
+        Closing the applications. Saving the settings.
+        :param event:
+        :return:
+        """
+        logger.info("Command sent.")
+
+        self.settings.setValue('window_size_w', np.int(self.size().width()))
+        self.settings.setValue('window_size_h', np.int(self.size().height()))
+        self.settings.setValue('window_pos_x', np.int(self.pos().x()))
+        self.settings.setValue('window_pos_y', np.int(self.pos().y()))
+
+        self.settings.setValue("bkg_cut", self.ui.bkg_spinbox.value())
+        self.settings.setValue("bkg_auto", self.ui.auto_bkg_radiobutton.isChecked())
+        self.settings.setValue("sum", self.ui.auto_bkg_radiobutton.isChecked())
+        self.settings.setValue("kernel_1", self.ui.medfilt_spinbox.value())
+        self.settings.setValue("kernel_2", self.ui.mask_spinbox.value())
+        self.settings.setValue("rotation", self.ui.rotation_spinbox.value())
+        self.settings.setValue("roi_small", self.ui.small_roi_spinbox.value())
+        self.settings.setValue("roi_t", self.ui.roi_top_spinbox.value())
+        self.settings.setValue("roi_h", self.ui.roi_height_spinbox.value())
+        self.settings.setValue("roi_l", self.ui.roi_left_spinbox.value())
+        self.settings.setValue("roi_w", self.ui.roi_width_spinbox.value())
+        self.settings.setValue("px", self.ui.pixelsize_spinbox.value())
+        self.settings.setValue("dist", self.ui.slit_screen_distance_spinbox.value())
+        self.settings.setValue("electron_energy", self.ui.beamenergy_spinbox.value())
+
+        sel_ind = self.ui.dataset_treeview.selectedIndexes()
+        try:
+            self.settings.setValue("selected_dataset", sel_ind[0].data())
+        except IndexError:
+            pass
+
     def parse_directory(self, pathname):
         filelist = glob.glob(os.path.join(pathname, "*.npy"))
         sl = list()
@@ -151,7 +224,12 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
     def parse_dataset(self, index=None):
         sel_ind = self.ui.dataset_treeview.selectedIndexes()
         logger.info("Dataset {0}".format(sel_ind[0].data()))
-        dataset = sel_ind[0].data()
+        if self.dataset_name != "":
+            dataset = self.dataset_name
+            logger.info("Going with dataset {0}".format(dataset))
+            self.dataset_name = ""
+        else:
+            dataset = sel_ind[0].data()
         filters = ["{0}-*.npy".format(dataset)]
         self.file_model.setNameFilters(filters)
         self.file_model.setNameFilterDisables(False)
@@ -214,6 +292,12 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
             self.ui.image_widget.setImage(pic.transpose(), autoLevels=False, autoRange=self.image_autorange)
 
     def start_analysis(self):
+
+        if self.em_ana.get_running():
+            logger.error("Scan already running")
+            self.ui.image_size_label.setText("Scan already running")
+            return
+
         parameter_dict = dict()
 
         parameter_dict["roi_t"] = self.ui.roi_top_spinbox.value()

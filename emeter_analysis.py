@@ -167,6 +167,7 @@ class EmittanceMeterAnalysis(object):
 
         self.update_callback = None
         self.update_signal = None
+        self.scan_running = False
 
     def analyze_scan(self, filename, bkg_cut=7):
         t_start = time.time()
@@ -251,6 +252,11 @@ class EmittanceMeterAnalysis(object):
 
     def analyze_scan_mp(self, filename, sum_images_for_pos=False, ready_callback=None, update_callback=None,
                         ready_signal=None, update_signal=None):
+        with self.param_lock:
+            if self.scan_running:
+                logger.error("Scan already running. Exiting")
+                return
+            self.scan_running = True
         full_name = os.path.join(self.path, "{0}-*.npy".format(filename))
         file_list = glob.glob(full_name)
         logger.info("Looking for {0}. Found {1} files".format(full_name, len(file_list)))
@@ -360,6 +366,9 @@ class EmittanceMeterAnalysis(object):
 
         eps = self.calc_emittance()
         logger.info("Total time: {0}".format(time.time() - t0))
+        with self.param_lock:
+            self.scan_running = False
+
         if ready_callback is not None:
             ready_callback(eps)
         if ready_signal is not None:
@@ -558,6 +567,14 @@ class EmittanceMeterAnalysis(object):
                 self.roi_small_w = parameter_dict["small_roi"]
             except KeyError:
                 logger.error("Small ROI width")
+
+    def get_running(self):
+        with self.param_lock:
+            if self.scan_running:
+                res = True
+            else:
+                res = False
+        return res
 
 
 if __name__ == "__main__":
