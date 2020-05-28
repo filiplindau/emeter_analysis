@@ -18,6 +18,7 @@ import threading
 import multiprocessing as mp
 import warnings
 import logging
+import cv2
 
 logger = logging.getLogger()
 while len(logger.handlers):
@@ -52,8 +53,10 @@ def process_image(pic, filename, slit_pos, parameter_dict):
 
     roi_w = parameter_dict["small_roi"]
 
+    t0 = time.time()
     pic_proc = medfilt2d(np.double(pic), kernel)
-    t01 = time.time()
+
+    t1 = time.time()
     # Background level from first 20 columns, one level for each row (the background structure is banded):
     bkg_level = pic_proc[:, 0:20].mean(1)
     logger.debug("{0:.1f}".format(bkg_level.mean()))
@@ -74,21 +77,21 @@ def process_image(pic, filename, slit_pos, parameter_dict):
     xs = roi_w
     logger.debug("xc: {0}, xs: {1}".format(xc, xs))
     # Cut an new ROI around the central pixel column xc, width xs
-    pic_roi2 = np.zeros((pic.shape[0], xs + 1))
+    pic_roi2 = np.zeros((pic.shape[0], xs + 1), dtype=np.float)
     low = np.maximum(0, int(xs // 2 - xc))
     high = np.minimum(-1, int(pic.shape[1] - xc) - xs // 2)
     logger.debug("low {0}, high {1}".format(low, high))
     pic_roi2[:, np.maximum(0, int(xs // 2 - xc)):np.minimum(-1, int(pic.shape[1] - xc) - xs // 2)] = \
         pic[:, np.maximum(0, int(xc - xs // 2)):np.minimum(pic.shape[1] - 1, int(xc + xs // 2))]
     pic_roi2 = pic_roi2[:, :-1]
-    t0 = time.time()
-    pic_proc2 = medfilt2d(np.double(pic_roi2), kernel)
-    t1 = time.time()
+    t2 = time.time()
+    pic_proc2 = medfilt2d(pic_roi2, kernel)
+    t3 = time.time()
     pic_proc2 = np.maximum(0, pic_proc2 - bkg_cut)
     # Create mask around the signal spot by heavily median filtering in the vertical direction (mask_kern ~ 25)
 
     mask = medfilt(np.maximum(0, pic_roi2 - bkg_cut), [mask_kern, kernel])
-    t2 = time.time()
+    t4 = time.time()
     pic_proc3 = pic_proc2 * (mask > 0)
     charge = pic_proc3.sum()
 
@@ -106,6 +109,93 @@ def process_image(pic, filename, slit_pos, parameter_dict):
     # logger.debug("Spot sigma: {0:.1f} pixels".format(xt1_w))
     # logger.debug("Charge: {0}".format(charge))
     pic_proc3 = ndimage.rotate(pic_proc3, rotation * 180 / np.pi, reshape=False)
+    t5 = time.time()
+    line_x = pic_proc3.sum(0)
+    x = (np.arange(line_x.shape[0]) - line_x.shape[0] / 2) * px
+    if charge > 0:
+        x0 = (x * line_x).sum() / charge
+        xp2 = np.sqrt(((x - x0) ** 2 * line_x).sum() / charge) / dist
+        xp = (x0 + xc * px - slit_pos) / dist
+    else:
+        x0 = xc * px
+        xp = 0
+        xp2 = 0
+    result = {"file_name": filename, "charge": charge, "x0": x0, "xc": xc, "xp": xp, "xp2": xp2,
+              "pic_proc": pic_proc3, "slit_pos": slit_pos, "pic_raw": pic_roi2}
+    # logger.info("\n==========================================\n"
+    #             "Timing data:\n\n"
+    #             "Total: {0:.2f} ms\n"
+    #             "Medfilt 1: {1:.2f} ms\n"
+    #             "pic_roi2 1: {2:.2f} ms\n"
+    #             "Medfilt 2: {3:.2f} ms\n"
+    #             "Medfilt1d: {4:.2f} ms\n"
+    #             "Rotate:  {5:.2f} ms\n\n".format(1e3*(time.time() - t0), 1e3*(t1 - t0),
+    #                                              1e3*(t2 - t1), 1e3*(t3 - t2), 1e3*(t4 - t3), 1e3*(t5 - t4)))
+    return result
+
+
+def process_image_cv(pic, filename, slit_pos, parameter_dict):
+    kernel = parameter_dict["kernel"]
+    mask_kern = parameter_dict["mask_kernel"]
+
+    # Background level to cut in the reduced ROI:
+    bkg_cut = parameter_dict["bkg_cut"]
+
+    rotation = parameter_dict["rotation"]
+    px = parameter_dict["px"]
+    dist = parameter_dict["dist"]
+
+    roi_w = parameter_dict["small_roi"]
+
+    t0 = time.time()
+
+    if pic.dtype != np.int16:
+        pic_proc = cv2.medianBlur(pic.astype(np.int16), kernel)
+    else:
+        pic_proc = cv2.medianBlur(pic, kernel)
+
+    t1 = time.time()
+    # Background level from first 20 columns, one level for each row (the background structure is banded):
+    bkg_level = pic_proc[:, 0:20].mean(1)
+    logger.debug("{0:.1f}".format(bkg_level.mean()))
+    if bkg_cut == "auto":
+        bkg_cut = bkg_level.max() + 1
+    # pic_proc = np.maximum(0, pic_proc - (bkg_level[:, np.newaxis]) + 1)
+    pic_proc = cv2.threshold(pic_proc, 0, 1, cv2.THRESH_TOZERO)[1]
+
+    # Assume spot is in the central +-50 vertical pixels of the ROI. Get the index for the maximum value
+    spot_find_size = 50
+    xc = pic_proc[pic_proc.shape[0] // 2 - spot_find_size:pic_proc.shape[0] // 2 + spot_find_size, :].sum(0).argmax()
+    xs = roi_w
+    logger.debug("xc: {0}, xs: {1}".format(xc, xs))
+    # Cut an new ROI around the central pixel column xc, width xs
+    pic_roi2 = np.zeros((pic.shape[0], xs + 1), dtype=np.int16)
+    low = np.maximum(0, int(xs // 2 - xc))
+    high = np.minimum(-1, int(pic.shape[1] - xc) - xs // 2)
+    logger.debug("low {0}, high {1}".format(low, high))
+    pic_roi2[:, np.maximum(0, int(xs // 2 - xc)):np.minimum(-1, int(pic.shape[1] - xc) - xs // 2)] = \
+        pic[:, np.maximum(0, int(xc - xs // 2)):np.minimum(pic.shape[1] - 1, int(xc + xs // 2))]
+    pic_roi2 = pic_roi2[:, :-1]
+    t2 = time.time()
+
+    pic_proc2 = cv2.medianBlur(pic_roi2, kernel)
+    t3 = time.time()
+
+    pic_proc2 = cv2.threshold(pic_proc2 - int(bkg_cut), thresh=0, maxval=1, type=cv2.THRESH_TOZERO)[1]
+    # Create mask around the signal spot by heavily median filtering in the vertical direction (mask_kern ~ 25)
+    mask = cv2.threshold(cv2.boxFilter(pic_roi2, -1, ksize=(kernel, mask_kern)),
+                         thresh=bkg_cut, maxval=1, type=cv2.THRESH_BINARY)[1]
+    # mask = medfilt(np.maximum(0, pic_roi2 - bkg_cut), [mask_kern, kernel])
+    t4 = time.time()
+    pic_proc3 = cv2.multiply(pic_proc2, mask)
+    # pic_proc3 = pic_proc2 * (mask > 0)
+    charge = pic_proc3.sum()
+
+    rot_mat = cv2.getRotationMatrix2D((pic_proc3.shape[1]/2, pic_proc3.shape[0]/2), rotation * 180 / np.pi, 1)
+    pic_proc3 = cv2.warpAffine(pic_proc3, rot_mat, dsize=(pic_proc3.shape[1], pic_proc3.shape[0]))
+    # pic_proc3 = ndimage.rotate(pic_proc3, rotation * 180 / np.pi, reshape=False)
+
+    t5 = time.time()
 
     line_x = pic_proc3.sum(0)
     x = (np.arange(line_x.shape[0]) - line_x.shape[0] / 2) * px
@@ -119,6 +209,16 @@ def process_image(pic, filename, slit_pos, parameter_dict):
         xp2 = 0
     result = {"file_name": filename, "charge": charge, "x0": x0, "xc": xc, "xp": xp, "xp2": xp2,
               "pic_proc": pic_proc3, "slit_pos": slit_pos, "pic_raw": pic_roi2}
+    # logger.info("\n==========================================\n"
+    #             "Timing data:\n\n"
+    #             "Total: {0:.2f} ms\n"
+    #             "Medfilt 1: {1:.2f} ms\n"
+    #             "pic_roi2 1: {2:.2f} ms\n"
+    #             "Medfilt 2: {3:.2f} ms\n"
+    #             "Medfilt1d: {4:.2f} ms\n"
+    #             "Rotate:  {5:.2f} ms\n\n".format(1e3 * (time.time() - t0), 1e3 * (t1 - t0),
+    #                                              1e3 * (t2 - t1), 1e3 * (t3 - t2), 1e3 * (t4 - t3), 1e3 * (t5 - t4)))
+
     return result
 
 
@@ -251,7 +351,7 @@ class EmittanceMeterAnalysis(object):
         return self.eps
 
     def analyze_scan_mp(self, filename, sum_images_for_pos=False, ready_callback=None, update_callback=None,
-                        ready_signal=None, update_signal=None):
+                        ready_signal=None, update_signal=None, use_cv=False):
         with self.param_lock:
             if self.scan_running:
                 logger.error("Scan already running. Exiting")
@@ -271,8 +371,12 @@ class EmittanceMeterAnalysis(object):
         else:
             n_pos = len(file_list)
 
-        thread = threading.Thread(target=self.run_scan_mp, args=(file_list, sum_images_for_pos,
-                                                                 ready_callback, ready_signal))
+        if use_cv:
+            thread = threading.Thread(target=self.run_scan_mp_cv, args=(file_list, sum_images_for_pos,
+                                                                        ready_callback, ready_signal))
+        else:
+            thread = threading.Thread(target=self.run_scan_mp, args=(file_list, sum_images_for_pos,
+                                                                     ready_callback, ready_signal))
         thread.start()
         return n_pos
 
@@ -323,6 +427,7 @@ class EmittanceMeterAnalysis(object):
                             self.update_callback((file, None))
                         continue
                     pic_roi += np.double(pic[roi_t:roi_t + roi_h, roi_l:roi_l + roi_w])
+                    # pic_roi += pic[roi_t:roi_t + roi_h, roi_l:roi_l + roi_w]
                 pic_roi /= n_f
                 logger.info("Processing image at pos {0}".format(pos_s))
                 pos = np.double(pos_s) * 1e-3
@@ -347,6 +452,106 @@ class EmittanceMeterAnalysis(object):
 
                     pic_roi = np.double(pic[roi_t:roi_t + roi_h, roi_l:roi_l + roi_w])
                     pool.apply_async(process_image, (pic_roi, file, pos, parameter_dict), callback=self.result_callback)
+                    if self.update_signal is not None:
+                        self.update_signal.emit("load")
+
+        pool.close()
+        pool.join()
+        with self.data_lock:
+            ind_sort = np.argsort(np.array(self.pos_data))
+            ind_good = ~np.isnan(np.array(self.xp2_data)[ind_sort])
+            self.pos_data = np.array(self.pos_data)[ind_sort][ind_good]
+            self.charge_data = np.array(self.charge_data)[ind_sort][ind_good]
+            self.image_center_data = np.array(self.image_center_data)[ind_sort][ind_good]
+            self.x0_data = np.array(self.x0_data)[ind_sort][ind_good]
+            self.xp_data = np.array(self.xp_data)[ind_sort][ind_good]
+            self.xp2_data = np.array(self.xp2_data)[ind_sort][ind_good]
+            self.pic_proc_data = np.array(self.pic_proc_data)[ind_sort, :, :][ind_good, :, :]
+            self.pic_raw_data = np.array(self.pic_raw_data)[ind_sort, :, :][ind_good, :, :]
+
+        eps = self.calc_emittance()
+        logger.info("Total time: {0}".format(time.time() - t0))
+        with self.param_lock:
+            self.scan_running = False
+
+        if ready_callback is not None:
+            ready_callback(eps)
+        if ready_signal is not None:
+            ready_signal.emit(eps)
+        return eps
+
+    def run_scan_mp_cv(self, file_list, sum_images_for_pos, ready_callback, ready_signal):
+        logger.info("Run thread starting, using opencv")
+        t0 = time.time()
+        with self.data_lock:
+            self.pic_proc_data = list()
+            self.pic_raw_data = list()
+            self.image_center_data = list()
+            self.charge_data = list()
+            self.pos_data = list()
+            self.x0_data = list()
+            self.xp_data = list()
+            self.xp2_data = list()
+
+        parameter_dict = dict()
+
+        with self.param_lock:
+            parameter_dict["rotation"] = self.rotation
+            parameter_dict["kernel"] = self.kernel
+            parameter_dict["mask_kernel"] = self.mask_kernel
+            parameter_dict["bkg_cut"] = self.bkg_cut
+            parameter_dict["px"] = self.px
+            parameter_dict["dist"] = self.dist
+            parameter_dict["small_roi"] = self.roi_small_w
+            roi_t = self.roi_t
+            roi_h = self.roi_h
+            roi_l = self.roi_l
+            roi_w = self.roi_w
+
+        pool = mp.Pool(mp.cpu_count())
+        if sum_images_for_pos:
+            pos_list = list()
+            [pos_list.append(file.split("-")[-2]) for file in file_list if "bkg" not in file]
+            pos_u = list(set(pos_list))
+            for pos_s in pos_u:
+                files = [file for file in file_list if pos_s in file]
+                pic_roi = np.zeros((roi_h, roi_w), dtype=np.int16)
+                n_f = 0
+                for file in files:
+                    try:
+                        pic = np.load(file)
+                        n_f += 1
+                    except (ValueError, IOError):
+                        logger.error("File {0} corrupted. Skipping.".format(file))
+                        if self.update_callback is not None:
+                            self.update_callback((file, None))
+                        continue
+                    # pic_roi += np.double(pic[roi_t:roi_t + roi_h, roi_l:roi_l + roi_w])
+                    pic_roi += pic[roi_t:roi_t + roi_h, roi_l:roi_l + roi_w]
+                pic_roi = cv2.multiply(pic_roi, np.ones_like(pic_roi), scale=1.0/n_f)
+                logger.info("Processing image at pos {0}".format(pos_s))
+                pos = np.double(pos_s) * 1e-3
+                pool.apply_async(process_image_cv, (pic_roi, pos_s, pos, parameter_dict), callback=self.result_callback)
+                if self.update_signal is not None:
+                    self.update_signal.emit("load")
+        else:
+            for ind, file in enumerate(file_list):
+                t0 = time.time()
+                logger.debug("\n===============================================================\n\n"
+                             "  Processing image {0}: {1}/{2}\n".format(file, ind, len(file_list)))
+                if "bkg" not in file:
+                    t1 = time.time()
+                    pos = np.double(file.split("-")[-2]) * 1e-3
+                    try:
+                        pic = np.load(file)
+                    except ValueError:
+                        logger.error("File {0} corrupted. Skipping.".format(file))
+                        if self.update_callback is not None:
+                            self.update_callback((file, None))
+                        continue
+
+                    pic_roi = pic[roi_t:roi_t + roi_h, roi_l:roi_l + roi_w]
+                    pool.apply_async(process_image_cv, (pic_roi, file, pos, parameter_dict), callback=self.result_callback)
                     if self.update_signal is not None:
                         self.update_signal.emit("load")
 
@@ -568,6 +773,9 @@ class EmittanceMeterAnalysis(object):
             except KeyError:
                 logger.error("Small ROI width")
 
+    def set_path(self, pathname):
+        self.path = pathname
+
     def get_running(self):
         with self.param_lock:
             if self.scan_running:
@@ -575,6 +783,10 @@ class EmittanceMeterAnalysis(object):
             else:
                 res = False
         return res
+
+    def cancel_analysis(self):
+        with self.data_lock:
+            self.scan_running = False
 
 
 if __name__ == "__main__":

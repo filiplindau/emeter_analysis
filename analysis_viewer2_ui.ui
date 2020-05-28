@@ -11,7 +11,11 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Dialog</string>
+   <string>Emittance meter scan analysis</string>
+  </property>
+  <property name="windowIcon">
+   <iconset>
+    <normaloff>F:/OneDrive/workspace/emeter_analysis/eps.png</normaloff>F:/OneDrive/workspace/emeter_analysis/eps.png</iconset>
   </property>
   <layout class="QHBoxLayout" name="horizontalLayout">
    <item>
@@ -25,6 +29,58 @@
         <string>Dataset:</string>
        </property>
       </widget>
+     </item>
+     <item>
+      <layout class="QHBoxLayout" name="horizontalLayout_12">
+       <property name="topMargin">
+        <number>6</number>
+       </property>
+       <item>
+        <widget class="QLabel" name="label_35">
+         <property name="text">
+          <string>Path</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="dir_select_edit">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+           <horstretch>1</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>16777215</width>
+           <height>16777215</height>
+          </size>
+         </property>
+         <property name="text">
+          <string>./data</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="dir_select_button">
+         <property name="minimumSize">
+          <size>
+           <width>25</width>
+           <height>0</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>25</width>
+           <height>16777215</height>
+          </size>
+         </property>
+         <property name="text">
+          <string>...</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
      </item>
      <item>
       <widget class="QTreeView" name="dataset_treeview">
@@ -58,6 +114,62 @@
        <property name="bottomMargin">
         <number>6</number>
        </property>
+       <item row="10" column="1">
+        <widget class="QWidget" name="widget_5" native="true">
+         <layout class="QHBoxLayout" name="horizontalLayout_11">
+          <property name="topMargin">
+           <number>0</number>
+          </property>
+          <property name="bottomMargin">
+           <number>0</number>
+          </property>
+          <item>
+           <widget class="QRadioButton" name="auto_bkg_radiobutton">
+            <property name="text">
+             <string>Auto</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QRadioButton" name="radioButton">
+            <property name="text">
+             <string>Manual</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="10" column="0">
+        <widget class="QLabel" name="label_33">
+         <property name="text">
+          <string>Bkg cut method</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QSpinBox" name="roi_height_spinbox">
+         <property name="maximum">
+          <number>3000</number>
+         </property>
+         <property name="value">
+          <number>700</number>
+         </property>
+        </widget>
+       </item>
+       <item row="12" column="1">
+        <widget class="QSpinBox" name="mask_spinbox">
+         <property name="singleStep">
+          <number>2</number>
+         </property>
+         <property name="value">
+          <number>25</number>
+         </property>
+        </widget>
+       </item>
        <item row="17" column="1">
         <widget class="QDoubleSpinBox" name="beamenergy_spinbox">
          <property name="maximum">
@@ -65,6 +177,106 @@
          </property>
          <property name="value">
           <double>3.300000000000000</double>
+         </property>
+        </widget>
+       </item>
+       <item row="18" column="0">
+        <spacer name="verticalSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeType">
+          <enum>QSizePolicy::Fixed</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item row="13" column="0">
+        <widget class="QLabel" name="label_13">
+         <property name="text">
+          <string/>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QSpinBox" name="roi_top_spinbox">
+         <property name="maximum">
+          <number>3000</number>
+         </property>
+         <property name="value">
+          <number>250</number>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="0">
+        <widget class="QLabel" name="label_4">
+         <property name="text">
+          <string>ROI left</string>
+         </property>
+        </widget>
+       </item>
+       <item row="12" column="0">
+        <widget class="QLabel" name="label_14">
+         <property name="text">
+          <string>Mask kernel</string>
+         </property>
+        </widget>
+       </item>
+       <item row="8" column="1">
+        <widget class="QDoubleSpinBox" name="rotation_spinbox">
+         <property name="minimum">
+          <double>-180.000000000000000</double>
+         </property>
+         <property name="maximum">
+          <double>180.000000000000000</double>
+         </property>
+         <property name="singleStep">
+          <double>0.500000000000000</double>
+         </property>
+         <property name="value">
+          <double>3.120000000000000</double>
+         </property>
+        </widget>
+       </item>
+       <item row="11" column="1">
+        <layout class="QHBoxLayout" name="horizontalLayout_4">
+         <item>
+          <widget class="QDoubleSpinBox" name="bkg_spinbox">
+           <property name="maximumSize">
+            <size>
+             <width>16777209</width>
+             <height>16777215</height>
+            </size>
+           </property>
+           <property name="decimals">
+            <number>1</number>
+           </property>
+           <property name="maximum">
+            <double>65000.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>256.000000000000000</double>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item row="0" column="1">
+        <widget class="QLabel" name="image_size_label">
+         <property name="text">
+          <string>-- x --</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="0">
+        <widget class="QLabel" name="label_8">
+         <property name="text">
+          <string>Image size</string>
          </property>
         </widget>
        </item>
@@ -97,26 +309,31 @@
          </layout>
         </widget>
        </item>
-       <item row="18" column="0">
-        <spacer name="verticalSpacer">
-         <property name="orientation">
-          <enum>Qt::Vertical</enum>
-         </property>
-         <property name="sizeType">
-          <enum>QSizePolicy::Fixed</enum>
-         </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>20</width>
-           <height>40</height>
-          </size>
-         </property>
-        </spacer>
-       </item>
-       <item row="12" column="0">
-        <widget class="QLabel" name="label_14">
+       <item row="4" column="0">
+        <widget class="QLabel" name="label_5">
          <property name="text">
-          <string>Mask kernel</string>
+          <string>ROI width</string>
+         </property>
+        </widget>
+       </item>
+       <item row="21" column="0">
+        <widget class="QLabel" name="label_26">
+         <property name="text">
+          <string>Analyze scan</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="label_2">
+         <property name="text">
+          <string>ROI top</string>
+         </property>
+        </widget>
+       </item>
+       <item row="16" column="0">
+        <widget class="QLabel" name="label_22">
+         <property name="text">
+          <string>Slit - screen distance / cm</string>
          </property>
         </widget>
        </item>
@@ -130,36 +347,48 @@
          </property>
         </widget>
        </item>
-       <item row="1" column="0">
-        <widget class="QLabel" name="label_2">
+       <item row="15" column="0">
+        <widget class="QLabel" name="label_21">
          <property name="text">
-          <string>ROI top</string>
+          <string>Pixel size / um</string>
          </property>
         </widget>
        </item>
-       <item row="8" column="1">
-        <widget class="QDoubleSpinBox" name="rotation_spinbox">
-         <property name="minimum">
-          <double>-180.000000000000000</double>
+       <item row="17" column="0">
+        <widget class="QLabel" name="label_23">
+         <property name="text">
+          <string>Beam energy / MeV</string>
          </property>
-         <property name="maximum">
-          <double>180.000000000000000</double>
+        </widget>
+       </item>
+       <item row="7" column="0">
+        <widget class="QLabel" name="label_34">
+         <property name="text">
+          <string>Small ROI width</string>
          </property>
+        </widget>
+       </item>
+       <item row="5" column="0">
+        <widget class="QLabel" name="label_12">
+         <property name="text">
+          <string/>
+         </property>
+        </widget>
+       </item>
+       <item row="15" column="1">
+        <widget class="QDoubleSpinBox" name="pixelsize_spinbox">
          <property name="singleStep">
-          <double>0.500000000000000</double>
+          <double>1.000000000000000</double>
          </property>
          <property name="value">
-          <double>3.120000000000000</double>
+          <double>13.300000000000001</double>
          </property>
         </widget>
        </item>
-       <item row="2" column="1">
-        <widget class="QSpinBox" name="roi_height_spinbox">
-         <property name="maximum">
-          <number>3000</number>
-         </property>
-         <property name="value">
-          <number>700</number>
+       <item row="2" column="0">
+        <widget class="QLabel" name="label_3">
+         <property name="text">
+          <string>ROI height</string>
          </property>
         </widget>
        </item>
@@ -176,92 +405,10 @@
          </property>
         </widget>
        </item>
-       <item row="12" column="1">
-        <widget class="QSpinBox" name="mask_spinbox">
-         <property name="singleStep">
-          <number>2</number>
-         </property>
-         <property name="value">
-          <number>25</number>
-         </property>
-        </widget>
-       </item>
-       <item row="17" column="0">
-        <widget class="QLabel" name="label_23">
-         <property name="text">
-          <string>Beam energy / MeV</string>
-         </property>
-        </widget>
-       </item>
-       <item row="21" column="0">
-        <widget class="QLabel" name="label_26">
-         <property name="text">
-          <string>Analyze scan</string>
-         </property>
-        </widget>
-       </item>
-       <item row="15" column="1">
-        <widget class="QDoubleSpinBox" name="pixelsize_spinbox">
-         <property name="singleStep">
-          <double>1.000000000000000</double>
-         </property>
-         <property name="value">
-          <double>13.300000000000001</double>
-         </property>
-        </widget>
-       </item>
-       <item row="3" column="0">
-        <widget class="QLabel" name="label_4">
-         <property name="text">
-          <string>ROI left</string>
-         </property>
-        </widget>
-       </item>
-       <item row="4" column="0">
-        <widget class="QLabel" name="label_5">
-         <property name="text">
-          <string>ROI width</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="0">
-        <widget class="QLabel" name="label_3">
-         <property name="text">
-          <string>ROI height</string>
-         </property>
-        </widget>
-       </item>
-       <item row="15" column="0">
-        <widget class="QLabel" name="label_21">
-         <property name="text">
-          <string>Pixel size / um</string>
-         </property>
-        </widget>
-       </item>
-       <item row="11" column="1">
-        <layout class="QHBoxLayout" name="horizontalLayout_4">
-         <item>
-          <widget class="QDoubleSpinBox" name="bkg_spinbox">
-           <property name="maximumSize">
-            <size>
-             <width>16777209</width>
-             <height>16777215</height>
-            </size>
-           </property>
-           <property name="decimals">
-            <number>1</number>
-           </property>
-           <property name="value">
-            <double>3.000000000000000</double>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </item>
-       <item row="13" column="0">
-        <widget class="QLabel" name="label_13">
-         <property name="text">
-          <string/>
+       <item row="3" column="1">
+        <widget class="QSpinBox" name="roi_left_spinbox">
+         <property name="maximum">
+          <number>3000</number>
          </property>
         </widget>
        </item>
@@ -275,6 +422,13 @@
          </property>
         </widget>
        </item>
+       <item row="6" column="0">
+        <widget class="QLabel" name="label_32">
+         <property name="text">
+          <string>Images at pos handling</string>
+         </property>
+        </widget>
+       </item>
        <item row="9" column="0">
         <widget class="QLabel" name="label">
          <property name="text">
@@ -282,38 +436,10 @@
          </property>
         </widget>
        </item>
-       <item row="5" column="0">
-        <widget class="QLabel" name="label_12">
-         <property name="text">
-          <string/>
-         </property>
-        </widget>
-       </item>
-       <item row="16" column="0">
-        <widget class="QLabel" name="label_22">
-         <property name="text">
-          <string>Slit - screen distance / cm</string>
-         </property>
-        </widget>
-       </item>
        <item row="11" column="0">
         <widget class="QLabel" name="label_10">
          <property name="text">
           <string>Bkg cut manual level</string>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="1">
-        <widget class="QLabel" name="image_size_label">
-         <property name="text">
-          <string>-- x --</string>
-         </property>
-        </widget>
-       </item>
-       <item row="7" column="0">
-        <widget class="QLabel" name="label_34">
-         <property name="text">
-          <string>Small ROI width</string>
          </property>
         </widget>
        </item>
@@ -327,13 +453,6 @@
          </property>
         </widget>
        </item>
-       <item row="3" column="1">
-        <widget class="QSpinBox" name="roi_left_spinbox">
-         <property name="maximum">
-          <number>3000</number>
-         </property>
-        </widget>
-       </item>
        <item row="8" column="0">
         <widget class="QLabel" name="label_18">
          <property name="text">
@@ -342,71 +461,22 @@
         </widget>
        </item>
        <item row="21" column="1">
-        <widget class="QPushButton" name="start_analysis_button">
-         <property name="text">
-          <string>Start</string>
-         </property>
-        </widget>
-       </item>
-       <item row="6" column="0">
-        <widget class="QLabel" name="label_32">
-         <property name="text">
-          <string>Images at pos handling</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="1">
-        <widget class="QSpinBox" name="roi_top_spinbox">
-         <property name="maximum">
-          <number>3000</number>
-         </property>
-         <property name="value">
-          <number>250</number>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="0">
-        <widget class="QLabel" name="label_8">
-         <property name="text">
-          <string>Image size</string>
-         </property>
-        </widget>
-       </item>
-       <item row="10" column="0">
-        <widget class="QLabel" name="label_33">
-         <property name="text">
-          <string>Bkg cut method</string>
-         </property>
-        </widget>
-       </item>
-       <item row="10" column="1">
-        <widget class="QWidget" name="widget_5" native="true">
-         <layout class="QHBoxLayout" name="horizontalLayout_11">
-          <property name="topMargin">
-           <number>0</number>
-          </property>
-          <property name="bottomMargin">
-           <number>0</number>
-          </property>
-          <item>
-           <widget class="QRadioButton" name="auto_bkg_radiobutton">
-            <property name="text">
-             <string>Auto</string>
-            </property>
-            <property name="checked">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QRadioButton" name="radioButton">
-            <property name="text">
-             <string>Manual</string>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </widget>
+        <layout class="QHBoxLayout" name="horizontalLayout_14">
+         <item>
+          <widget class="QPushButton" name="start_analysis_button">
+           <property name="text">
+            <string>Start</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="cancel_pushbutton">
+           <property name="text">
+            <string>Cancel</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </item>
       </layout>
      </item>

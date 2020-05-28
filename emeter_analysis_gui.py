@@ -51,7 +51,7 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
         self.path = os.path.join(os.path.curdir, "data")
         self.file_model.setRootPath(self.path)
         self.dataset_model = QtGui.QStandardItemModel()
-        self.dataset_name = None
+        self.dataset_name_init = None
 
         self.charge_plot = None
         self.line_plot = None
@@ -64,7 +64,7 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
         self.setup_layout()
 
         self.em_ana = EmittanceMeterAnalysis()
-        self.parse_directory(self.path)
+        self.parse_directory(self.ui.dir_select_edit.text())
 
     def setup_layout(self):
         self.dataset_model.setHorizontalHeaderLabels(["Dataset", "Images", "Date", "Positions",
@@ -74,6 +74,8 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
         # self.ui.dataset_treeview.setRootIndex(self.file_model.index(self.path))
         # self.ui.dataset_treeview.activated.connect(self.process_image)
         self.ui.dataset_treeview.clicked.connect(self.parse_dataset)
+        self.ui.dir_select_edit.editingFinished.connect(self.parse_directory)
+        self.ui.dir_select_button.clicked.connect(self.select_directory)
         self.ui.file_listview.setModel(self.file_model)
         self.ui.file_listview.setRootIndex(self.file_model.index(self.path))
         self.ui.file_listview.activated.connect(self.update_image)
@@ -137,7 +139,7 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
         self.ui.small_roi_spinbox.setValue(val)
         val = self.settings.value("px", "13.3", type=float)
         self.ui.pixelsize_spinbox.setValue(val)
-        val = self.settings.value("dist", "0.23", type=float)
+        val = self.settings.value("dist", "23.0", type=float)
         self.ui.slit_screen_distance_spinbox.setValue(val)
         val = self.settings.value("electron_energy", "3.31", type=float)
         self.ui.beamenergy_spinbox.setValue(val)
@@ -147,7 +149,11 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
         else:
             self.ui.each_image_radiobutton.setChecked(True)
 
-        self.dataset_name = self.settings.value("selected_dataset", "", type=str)
+        self.dataset_name_init = self.settings.value("selected_dataset", "", type=str)
+
+        s = self.settings.value("dir_select", "./data", type=str)
+        logger.info("Retrieving setting dir_select: {0}".format(s))
+        self.ui.dir_select_edit.setText(s)
 
         # Geometry setup
         window_pos_x = self.settings.value('window_pos_x', 100, type=int)
@@ -186,13 +192,26 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
         self.settings.setValue("dist", self.ui.slit_screen_distance_spinbox.value())
         self.settings.setValue("electron_energy", self.ui.beamenergy_spinbox.value())
 
+        s = self.ui.dir_select_edit.text()
+        logger.info("Saving setting dir_select to {0}".format(s))
+        self.settings.setValue("dir_select", s)
+
         sel_ind = self.ui.dataset_treeview.selectedIndexes()
         try:
             self.settings.setValue("selected_dataset", sel_ind[0].data())
         except IndexError:
             pass
 
-    def parse_directory(self, pathname):
+    def parse_directory(self, pathname=None):
+        logger.info("Parsing directory {0}".format(pathname))
+        if pathname is None:
+            pathname = self.ui.dir_select_edit.text()
+        else:
+            self.ui.dir_select_edit.setText(pathname)
+        self.file_model.setRootPath(pathname)
+        self.ui.file_listview.setRootIndex(self.file_model.index(pathname))
+        self.path = pathname
+        self.em_ana.set_path(pathname)
         filelist = glob.glob(os.path.join(pathname, "*.npy"))
         sl = list()
         [sl.append("-".join(s.split("-")[:-3])) for s in filelist]
@@ -200,6 +219,10 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
         unique_sl.sort()
         unique_sl = [os.path.split(f)[-1] for f in unique_sl]
         logger.debug("Filelist {0}".format(unique_sl))
+        self.dataset_model.clear()
+        self.dataset_model.setHorizontalHeaderLabels(["Dataset", "Images", "Date", "Positions",
+                                                      "Pos min", "Pos max", "Shots"])
+
         for u_s in unique_sl:
             fl = list()
             [fl.append(f) for f in filelist if u_s in f]
@@ -221,13 +244,22 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
             self.dataset_model.appendRow(item_row)
         return True
 
+    def select_directory(self):
+        file = QtWidgets.QFileDialog.getExistingDirectory(self, "Select data directory", self.ui.dir_select_edit.text())
+        logger.info("Directory {0} selected".format(file))
+        if file == "":
+            logger.warning("No directory selected")
+            return
+        else:
+            self.parse_directory(file)
+
     def parse_dataset(self, index=None):
         sel_ind = self.ui.dataset_treeview.selectedIndexes()
         logger.info("Dataset {0}".format(sel_ind[0].data()))
-        if self.dataset_name != "":
-            dataset = self.dataset_name
+        if self.dataset_name_init != "":
+            dataset = self.dataset_name_init
             logger.info("Going with dataset {0}".format(dataset))
-            self.dataset_name = ""
+            self.dataset_name_init = ""
         else:
             dataset = sel_ind[0].data()
         filters = ["{0}-*.npy".format(dataset)]
@@ -255,6 +287,7 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
                 return
         try:
             pic = np.load("{0}/data/{1}".format(QtCore.QDir.currentPath(), index.data()))
+            pic = np.load("{0}/{1}".format(self.path, index.data()))
             pos = np.double(index.data().split("-")[-2]) * 1e-3
         except ValueError:
             self.ui.image_size_label.setText("ERROR")
@@ -324,7 +357,8 @@ class EmittanceMeterViewer(QtWidgets.QWidget):
         n_pos = self.em_ana.analyze_scan_mp(dataset,
                                             sum_images_for_pos=self.ui.sum_images_radiobutton.isChecked(),
                                             ready_signal=self.ready_signal,
-                                            update_signal=self.update_signal)
+                                            update_signal=self.update_signal,
+                                            use_cv=True)
 
         self.scan_n_pos = n_pos
         self.scan_pos = 0
